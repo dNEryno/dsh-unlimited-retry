@@ -746,6 +746,7 @@ window.__ModuleLoader__.load({
           maxRetriesPerTurn: draft.maxRetriesPerTurn,
           excludeCodes: draft.excludeCodes,
           recordSessionEvents: draft.recordSessionEvents,
+          classifyTransientFailures: draft.classifyTransientFailures,
         };
         setPending(true);
         setOutcome(null);
