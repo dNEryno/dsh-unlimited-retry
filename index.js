@@ -1008,7 +1008,11 @@ export function apply(ctx, config) {
             return state.attempt === 0 && (state.turnAttempts ?? 0) === 0 ? state : EMPTY_CHAIN;
           }
           if (STEP_RESETS.has(type)) {
-            return state.attempt === 0 ? state : { ...state, attempt: 0 };
+            // A new step starts a new retry series: the durable llm/retry records
+            // pair up through retryId, and the session loader rejects a chain that
+            // reuses an id an earlier chain already used.
+            if (state.attempt === 0 && state.retryId === undefined) return state;
+            return { ...state, attempt: 0, retryId: undefined };
           }
           if (type !== "llm/retry") return state;
           // Only this plugin's own retries own this ladder.
@@ -1080,7 +1084,7 @@ export function apply(ctx, config) {
       // turn boundary ends both.
       fallbackChains.set(id, TURN_RESETS.has(type)
         ? EMPTY_CHAIN
-        : { ...current, attempt: 0 });
+        : { ...current, attempt: 0, retryId: undefined });
     });
   }
 

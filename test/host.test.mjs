@@ -341,6 +341,28 @@ test("a new step restarts the ladder instead of continuing at the ceiling", asyn
   await fake.dispose();
 });
 
+test("a new step mints a new retryId instead of reusing the finished one", async () => {
+  const fake = fakeContext();
+  plugin.apply(fake.ctx, { initialDelayMs: 1, maxDelayMs: 2, jitterRatio: 0 });
+
+  const projection = fake.services.get("sessionProjections");
+  const emit = (session, event) => fake.listeners.get("session/event")?.(session, event);
+  const agent = fakeAgent("session-1", projection, emit);
+  await fake.fire("agent/request-error", { ...failurePayload(), agent }, async () => undefined);
+  const firstId = agent.appended.at(-1).data.retryId;
+
+  // The session loader pairs `llm/retry` with `llm/retry-started` by retryId and
+  // refuses a chain that reuses an id an earlier chain already holds. Carrying
+  // the finished step's id into the next step makes the session log unreadable
+  // on the next load, so the identity has to die with the step.
+  agent.session.append("step/start", { turn: 2, step: 1 });
+  await fake.fire("agent/request-error", { ...failurePayload(), agent }, async () => undefined);
+
+  assert.equal(typeof firstId, "string", "a retry record always carries an id");
+  assert.notEqual(agent.appended.at(-1).data.retryId, firstId, "each step owns its own retry series");
+  await fake.dispose();
+});
+
 test("legacy retryAllCodes/terminalCodes still mount and are accepted", async () => {
   const fake = fakeContext();
   // A 1.x patch must not break on 2.0.0.
